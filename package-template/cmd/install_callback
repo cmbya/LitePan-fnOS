@@ -1,0 +1,18 @@
+#!/bin/bash
+set -u
+export PATH="/var/apps/python312/target/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+RUNTIME="${TRIM_PKGVAR}/runtime"
+DATA_DIR="${TRIM_PKGVAR}/data"
+LOG="${TRIM_PKGVAR}/install.log"
+mkdir -p "$RUNTIME" "$DATA_DIR" "${TRIM_PKGETC}"
+if ! /var/apps/python312/target/bin/python3 "${TRIM_APPDEST}/native/bootstrap.py" \
+  --runtime "$RUNTIME" --version "0.4.9-Beta" >> "$LOG" 2>&1; then
+  {
+    echo "LitePan 原生运行环境安装失败。首次安装需要 NAS 能访问 Docker Hub（仅下载官方镜像层，不需要 Docker 服务）。"
+    echo "install.log 最后 40 行："
+    echo "----------------"
+    tail -n 40 "$LOG" 2>/dev/null || true
+  } > "${TRIM_TEMP_LOGFILE}"
+  exit 1
+fi
+exit 0

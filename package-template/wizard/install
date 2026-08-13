@@ -1,0 +1,15 @@
+[
+  {
+    "stepTitle": "LitePan 原生版说明",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "这是 x86_64 原生 fnOS 版本，不运行 Docker。首次安装会从 ponphil/litepan:v0.4.9-Beta（失败时回退 beta）官方镜像中提取 linux/amd64 二进制，因此 NAS 需要能访问 Docker Hub。Web 端口 5211；默认账号/密码均为 admin，请登录后立即修改。"
+      },
+      {
+        "type": "tips",
+        "helpText": "为了保留 LitePan 的 FUSE 本地挂载能力，本应用按上游 privileged 部署要求以 root 运行。飞牛会创建 litepan/strm 与 litepan/mounts 共享目录。"
+      }
+    ]
+  }
+]
