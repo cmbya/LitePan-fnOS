@@ -1,0 +1,130 @@
+name: Build LitePan fnOS FPK
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "可选：指定上游 Docker 标签，例如 v0.4.9-Beta；留空则自动检测最新 vX.Y.Z-Beta"
+        required: false
+        type: string
+
+  schedule:
+    # 每天一次：UTC 02:13 = 北京时间 10:13
+    - cron: "13 2 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 获取目标上游版本
+        id: version
+        env:
+          MANUAL_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${MANUAL_TAG:-}" ]; then
+            TAG="$MANUAL_TAG"
+          else
+            TAG="$(python3 scripts/latest_upstream.py)"
+          fi
+
+          VERSION_LABEL="${TAG#v}"
+          PACK_REV="$(tr -d '[:space:]' < PACK_REV)"
+          RELEASE_TAG="fnos-${TAG}-${PACK_REV}"
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version_label=$VERSION_LABEL" >> "$GITHUB_OUTPUT"
+          echo "pack_rev=$PACK_REV" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+          echo "上游 Docker 标签: $TAG"
+          echo "飞牛封装版本: $PACK_REV"
+
+      - name: 检查是否已经发布
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$RELEASE_TAG 已存在，本次跳过。"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 验证 Docker Hub 标签
+        if: steps.existing.outputs.exists != 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          from urllib.parse import quote
+
+          tag = os.environ["TAG"]
+          url = "https://hub.docker.com/v2/repositories/ponphil/litepan/tags/" + quote(tag, safe="") + "/"
+          req = urllib.request.Request(url, headers={"User-Agent": "LitePan-fnOS-builder"})
+          with urllib.request.urlopen(req, timeout=60) as r:
+              data = json.load(r)
+
+          imgs = data.get("images") or []
+          if imgs and not any(i.get("os") == "linux" and i.get("architecture") == "amd64" for i in imgs):
+              raise SystemExit(f"{tag} 没有 linux/amd64 镜像")
+          print("Docker Hub 标签可用:", tag)
+          PY
+
+      - name: 构建 x86 FPK
+        if: steps.existing.outputs.exists != 'true'
+        run: |
+          chmod +x scripts/build_fpk.sh
+          scripts/build_fpk.sh "${{ steps.version.outputs.tag }}"
+
+      - name: 上传 Actions Artifact
+        if: steps.existing.outputs.exists != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: LitePan-${{ steps.version.outputs.version_label }}-${{ steps.version.outputs.pack_rev }}-fnOS-x86
+          path: |
+            dist/*.fpk
+            dist/SHA256SUMS.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: 创建 GitHub Pre-release
+        if: steps.existing.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          UPSTREAM_TAG: ${{ steps.version.outputs.tag }}
+          VERSION_LABEL: ${{ steps.version.outputs.version_label }}
+          PACK_REV: ${{ steps.version.outputs.pack_rev }}
+        run: |
+          cat > /tmp/release-notes.md <<EOF
+          根据上游 Docker Hub **ponphil/litepan:${UPSTREAM_TAG}** 自动生成 fnOS x86 原生 FPK。
+
+          - 上游：Ponphil/LitePan
+          - 上游镜像标签：${UPSTREAM_TAG}
+          - fnOS 封装：${PACK_REV}
+          - 架构：x86 / amd64
+          - Web 端口：5211
+          - Docker：运行时不使用 Docker
+          - 安装方式：从上游官方镜像提取 linux/amd64 LitePan 二进制
+          - 数据：data / strm / mounts 持久化
+
+          这是自动构建的 Pre-release。
+          EOF
+
+          gh release create "$RELEASE_TAG" \
+            dist/*.fpk dist/SHA256SUMS.txt \
+            --title "LitePan ${VERSION_LABEL} fnOS x86 (${PACK_REV})" \
+            --notes-file /tmp/release-notes.md \
+            --prerelease
