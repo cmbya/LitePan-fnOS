@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TAG="${1:?用法: scripts/build_fpk.sh v0.4.9-Beta}"
-PACK_REV="$(tr -d '[:space:]' < "$ROOT/PACK_REV")"
 
 VERSION_LABEL="${TAG#v}"
 VERSION_NORM="$(printf '%s' "$VERSION_LABEL" | tr '[:upper:]' '[:lower:]')"
@@ -16,7 +15,7 @@ rm -rf "$BUILD"
 mkdir -p "$PKG" "$DIST"
 cp -a "$ROOT/package-template/." "$PKG/"
 
-python3 - "$PKG" "$TAG" "$VERSION_LABEL" "$VERSION_NORM" "$PACK_REV" <<'PY'
+python3 - "$PKG" "$TAG" "$VERSION_LABEL" "$VERSION_NORM" <<'PY'
 from pathlib import Path
 import re, sys
 
@@ -24,12 +23,11 @@ pkg = Path(sys.argv[1])
 tag = sys.argv[2]
 version_label = sys.argv[3]
 version_norm = sys.argv[4]
-pack_rev = sys.argv[5]
 
 # manifest
 p = pkg / "manifest"
 s = p.read_text(encoding="utf-8")
-s = re.sub(r"^version=.*$", f"version={version_norm}-{pack_rev}", s, flags=re.M)
+s = re.sub(r"^version=.*$", f"version={version_norm}", s, flags=re.M)
 s = re.sub(
     r"^desc=.*$",
     f"desc=LitePan Go {version_label} x86 原生飞牛版。不使用 Docker；安装时从上游官方 {tag} amd64 镜像提取二进制运行。",
@@ -38,7 +36,7 @@ s = re.sub(
 )
 s = re.sub(
     r"^changelog=.*$",
-    f"changelog={pack_rev}：跟随上游 Docker Hub {tag}；x86_64 原生运行，无需 Docker；data 持久化，strm 与 mounts 使用飞牛共享目录。",
+    f"changelog=跟随上游 Docker Hub {tag}；x86_64 原生运行，无需 Docker；data 持久化，strm 与 mounts 使用飞牛共享目录。",
     s,
     flags=re.M,
 )
@@ -97,7 +95,7 @@ s = re.sub(r"^checksum=.*$", f"checksum={sys.argv[2]}", s, flags=re.M)
 p.write_text(s, encoding="utf-8")
 PY
 
-OUT="$DIST/LitePan_${VERSION_LABEL}_${PACK_REV}_fnOS_x86.fpk"
+OUT="$DIST/LitePan_${VERSION_LABEL}_fnOS_x86.fpk"
 
 (
   cd "$PKG"
