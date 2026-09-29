@@ -1,6 +1,12 @@
 name: Build LitePan fnOS FPK
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - package-template/manifest
+      - scripts/build_fpk.sh
+      - .github/workflows/build-litepan-fpk.yml
   workflow_dispatch:
     inputs:
       image_tag:
@@ -37,16 +43,13 @@ jobs:
           fi
 
           VERSION_LABEL="${TAG#v}"
-          PACK_REV="$(tr -d '[:space:]' < PACK_REV)"
-          RELEASE_TAG="fnos-${TAG}-${PACK_REV}"
+          RELEASE_TAG="fnos-${TAG}"
 
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version_label=$VERSION_LABEL" >> "$GITHUB_OUTPUT"
-          echo "pack_rev=$PACK_REV" >> "$GITHUB_OUTPUT"
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
           echo "上游 Docker 标签: $TAG"
-          echo "飞牛封装版本: $PACK_REV"
 
       - name: 检查是否已经发布
         id: existing
@@ -92,7 +95,7 @@ jobs:
         if: steps.existing.outputs.exists != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: LitePan-${{ steps.version.outputs.version_label }}-${{ steps.version.outputs.pack_rev }}-fnOS-x86
+          name: LitePan-${{ steps.version.outputs.version_label }}-fnOS-x86
           path: |
             dist/*.fpk
             dist/SHA256SUMS.txt
@@ -106,14 +109,12 @@ jobs:
           RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
           UPSTREAM_TAG: ${{ steps.version.outputs.tag }}
           VERSION_LABEL: ${{ steps.version.outputs.version_label }}
-          PACK_REV: ${{ steps.version.outputs.pack_rev }}
         run: |
           cat > /tmp/release-notes.md <<EOF
           根据上游 Docker Hub **ponphil/litepan:${UPSTREAM_TAG}** 自动生成 fnOS x86 原生 FPK。
 
           - 上游：Ponphil/LitePan
           - 上游镜像标签：${UPSTREAM_TAG}
-          - fnOS 封装：${PACK_REV}
           - 架构：x86 / amd64
           - Web 端口：5211
           - Docker：运行时不使用 Docker
@@ -125,6 +126,6 @@ jobs:
 
           gh release create "$RELEASE_TAG" \
             dist/*.fpk dist/SHA256SUMS.txt \
-            --title "LitePan ${VERSION_LABEL} fnOS x86 (${PACK_REV})" \
+            --title "LitePan ${VERSION_LABEL} fnOS x86" \
             --notes-file /tmp/release-notes.md \
             --prerelease
