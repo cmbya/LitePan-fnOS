@@ -29,9 +29,8 @@ Actions -> Build LitePan fnOS FPK -> Run workflow
 - `image_tag` 留空：自动选择最新 `vX.Y.Z-Beta`
 - 也可以手动填写：`v0.4.9-Beta`
 
-## 飞牛封装版本
+## 上游版本与旧包迁移
 
-`PACK_REV` 当前为 `native1`。
+新 FPK 的 manifest、文件名和 Release tag 直接使用上游版本 `0.5.6-beta`，不再添加封装修订号。同一个上游版本只发布一次，不能静默替换同版本 FPK。
 
-以后如果只修改 fnOS 封装而上游版本没变，把 `PACK_REV` 改成 `native2`，
-再手动运行 Actions 即可生成新的 FPK。
+FnDepot 先前索引的版本为 `0.5.6-beta-native1`。已安装的旧包可能因版本号比较或安装来源无法自动升级；切换版本规则需要在设备上单独验证和迁移。
